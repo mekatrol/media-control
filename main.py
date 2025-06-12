@@ -54,17 +54,20 @@ with Hands() as hands:
 
             cv2.putText(frame, f'Hand: {info["hand"]}', (x_pos, y_base),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-            
+
             cv2.putText(frame, f'Gesture: {info["gesture"]}', (x_pos, y_base + 35),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-            
+
             cv2.putText(frame, f'Up: {info["fingers_up"]}', (x_pos, y_base + 70),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-            
+
+            cv2.putText(frame, f'Rotation: {info["rotation_angle"]}', (x_pos, y_base + 105),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+
             for j, text in enumerate(info["directions"]):
-                cv2.putText(frame, text, (x_pos, y_base + 105 + j * 25),
+                cv2.putText(frame, text, (x_pos, y_base + 140 + j * 25),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 2)
-            
+
             for j, text in enumerate(info["extensions"]):
                 cv2.putText(frame, text, (x_pos, y_base + 240 + j * 25),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 2)

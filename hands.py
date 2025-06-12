@@ -4,6 +4,7 @@ import cv2
 from gesture import Gesture
 from hand_landmark import HandLandmark
 from mediapipe.framework.formats.landmark_pb2 import NormalizedLandmarkList
+from math import atan2, degrees
 from math_helper import angle_between, vector
 
 # Threshold for "significantly" higher/lower
@@ -108,6 +109,19 @@ class Hands:
 
         return angle < threshold_deg
 
+    def hand_rotation_angle(self, wrist, index_mcp):
+        """
+        Calculates the in-plane rotation of the hand (roll-like), in degrees.
+        Based on vector from wrist to index_mcp.
+        """
+        dx = index_mcp.x - wrist.x
+        dy = index_mcp.y - wrist.y
+
+        angle_rad = atan2(dy, dx)
+        angle_deg = degrees(angle_rad)
+
+        return angle_deg  # Positive means rotated counterclockwise
+
     def draw_landmarks(self, frame, hand_landmarks, width, height):
         # Draw landmarks as circles
         for lm in hand_landmarks.landmark:
@@ -154,6 +168,12 @@ class Hands:
             # Shorthand variable
             lm = hand_landmarks.landmark
 
+            # Compute hand rotation angle
+            wrist = lm[HandLandmark.WRIST.value]
+            index_mcp = lm[HandLandmark.INDEX_MCP.value]
+
+            rotation_angle = self.hand_rotation_angle(wrist, index_mcp)
+
             # Count fingers up (excluding thumb)
             fingers_up = 0
             fingers_extended = 0
@@ -184,7 +204,6 @@ class Hands:
                 else:
                     gesture = Gesture.FIST
             else:
-                print('xxxxx')
                 gesture = {
                     0: Gesture.FIST,
                     1: Gesture.ONE,
@@ -224,7 +243,8 @@ class Hands:
                 "directions": directions,
                 "landmarks": hand_landmarks,
                 "fingers_up": fingers_up,
-                "extensions": extensions
+                "extensions": extensions,
+                "rotation_angle": rotation_angle
             })
 
             if draw_landmarks:
