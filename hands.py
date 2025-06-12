@@ -156,11 +156,19 @@ class Hands:
 
             # Count fingers up (excluding thumb)
             fingers_up = 0
+            fingers_extended = 0
+            extensions = []
             for i in range(1, 5):
                 tip = lm[tip_ids[i]]
                 base = lm[base_ids[i]]
                 if tip.y < (base.y - DELTA_VERTICAL_MARGIN):
                     fingers_up += 1
+
+                extended = self.is_finger_straight(hand_landmarks, Digit(i))
+                extensions.append(f"{finger_names[i]}: {extended}")
+
+                if extended:
+                    fingers_extended += 1
 
             thumb_tip = lm[HandLandmark.THUMB_TIP.value]
             thumb_base = lm[HandLandmark.THUMB_MCP.value]
@@ -168,7 +176,7 @@ class Hands:
             thumb_down = thumb_tip.y > thumb_base.y + DELTA_VERTICAL_MARGIN
 
             # If there are no fingers up then is a fist, thumbs up, or thumbs down
-            if fingers_up == 0:
+            if fingers_extended == 0:
                 if thumb_up:
                     gesture = Gesture.THUMBS_UP
                 elif thumb_down:
@@ -176,13 +184,14 @@ class Hands:
                 else:
                     gesture = Gesture.FIST
             else:
+                print('xxxxx')
                 gesture = {
                     0: Gesture.FIST,
                     1: Gesture.ONE,
                     2: Gesture.TWO,
                     3: Gesture.THREE,
                     4: Gesture.FOUR,
-                }.get(fingers_up, "Unknown")
+                }.get(fingers_extended, "Unknown")
 
             # Finger directions (all fingers including thumb)
             directions = []
@@ -209,11 +218,6 @@ class Hands:
 
                 directions.append(f"{finger_names[i]}: {direction}")
 
-            extensions = []
-            for i in range(5):
-                extended = self.is_finger_straight(hand_landmarks, Digit(i))
-                extensions.append(f"{finger_names[i]}: {extended}")
-
             frame_gesture_info.append({
                 "hand": hand_label,
                 "gesture": gesture,
@@ -223,8 +227,8 @@ class Hands:
                 "extensions": extensions
             })
 
-        if draw_landmarks:
-            self.draw_landmarks(frame, hand_landmarks,
-                                self.detection_width, self.detection_height)
+            if draw_landmarks:
+                self.draw_landmarks(frame, hand_landmarks,
+                                    self.detection_width, self.detection_height)
 
         return frame_gesture_info
