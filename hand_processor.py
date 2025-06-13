@@ -1,68 +1,70 @@
 from typing import Optional
 import mediapipe as mp
 import cv2
-from digit import Digit, DigitDirection
+from hand_side import HandSide
+from digit_direction import DigitDirection
+from digit_type import DigitType
 from gesture import Gesture
 from hand_landmark import HandLandmark
 from mediapipe.framework.formats.landmark_pb2 import NormalizedLandmarkList
 from math import atan2, degrees
 from math_helper import angle_between, vector
-from hand_state import HandSide, HandState
+from hand import Hand
 
 # Threshold for "significantly" higher/lower
 DELTA_VERTICAL_MARGIN = 0.1
 
 digit_names = {
-    Digit.THUMB:  "Thumb",
-    Digit.INDEX:  "Index",
-    Digit.MIDDLE: "Middle",
-    Digit.RING:   "Ring",
-    Digit.PINKY:  "Pinky",
+    DigitType.THUMB:  "Thumb",
+    DigitType.INDEX:  "Index",
+    DigitType.MIDDLE: "Middle",
+    DigitType.RING:   "Ring",
+    DigitType.PINKY:  "Pinky",
 }
 
 tip_ids = {
-    Digit.THUMB: HandLandmark.THUMB_TIP.value,
-    Digit.INDEX: HandLandmark.INDEX_TIP.value,
-    Digit.MIDDLE: HandLandmark.MIDDLE_TIP.value,
-    Digit.RING: HandLandmark.RING_TIP.value,
-    Digit.PINKY: HandLandmark.PINKY_TIP.value,
+    DigitType.THUMB: HandLandmark.THUMB_TIP.value,
+    DigitType.INDEX: HandLandmark.INDEX_TIP.value,
+    DigitType.MIDDLE: HandLandmark.MIDDLE_TIP.value,
+    DigitType.RING: HandLandmark.RING_TIP.value,
+    DigitType.PINKY: HandLandmark.PINKY_TIP.value,
 }
 
 base_ids = {
-    Digit.THUMB: HandLandmark.THUMB_MCP.value,
-    Digit.INDEX: HandLandmark.INDEX_PIP.value,
-    Digit.MIDDLE: HandLandmark.MIDDLE_PIP.value,
-    Digit.RING: HandLandmark.RING_PIP.value,
-    Digit.PINKY: HandLandmark.PINKY_PIP.value,
+    DigitType.THUMB: HandLandmark.THUMB_MCP.value,
+    DigitType.INDEX: HandLandmark.INDEX_PIP.value,
+    DigitType.MIDDLE: HandLandmark.MIDDLE_PIP.value,
+    DigitType.RING: HandLandmark.RING_PIP.value,
+    DigitType.PINKY: HandLandmark.PINKY_PIP.value,
 }
 
 
 # Each digits (TIP, BASE) landmark indices
-DIGIT_POINTS = {
+digit_points = {
     # Thumb: Tip, IP (middle), MCP (base)
-    Digit.THUMB:  (
+    DigitType.THUMB:  (
         HandLandmark.THUMB_TIP.value,
         HandLandmark.THUMB_IP.value,
         HandLandmark.THUMB_MCP.value
     ),
 
     # Fingers: Tip, DIP (middle), PIP (base)
-    Digit.INDEX:  (
+    DigitType.INDEX:  (
         HandLandmark.INDEX_TIP.value,
         HandLandmark.INDEX_DIP.value,
         HandLandmark.INDEX_PIP.value
     ),
-    Digit.MIDDLE: (
+    DigitType.MIDDLE: (
         HandLandmark.MIDDLE_TIP.value,
         HandLandmark.MIDDLE_DIP.value,
         HandLandmark.MIDDLE_PIP.value
     ),
-    Digit.RING:   (
+    DigitType.RING:   (
         HandLandmark.RING_TIP.value,
         HandLandmark.RING_DIP.value,
         HandLandmark.RING_PIP.value
     ),
-    Digit.PINKY:  (
+    DigitType.PINKY:  (
         HandLandmark.PINKY_TIP.value,
         HandLandmark.PINKY_DIP.value,
         HandLandmark.PINKY_PIP.value
@@ -97,8 +99,8 @@ class HandProcessor:
         if self.hands:
             self.hands.close()
 
-    def is_finger_straight(self, landmarks: NormalizedLandmarkList, digit: Digit, threshold_deg: float = 10.0) -> float:
-        tip_idx, dip_idx, base_idx = DIGIT_POINTS[digit]
+    def digit_angle(self, landmarks: NormalizedLandmarkList, digit: DigitType) -> float:
+        tip_idx, dip_idx, base_idx = digit_points[digit]
         tip = landmarks.landmark[tip_idx]
         mid = landmarks.landmark[dip_idx]
         base = landmarks.landmark[base_idx]
@@ -108,7 +110,7 @@ class HandProcessor:
 
         angle = angle_between(v1, v2)
 
-        return angle < threshold_deg
+        return angle
 
     def hand_rotation_angle(self, wrist, index_mcp):
         # Calculates the in-plane rotation of the hand (roll) in degrees.
@@ -148,7 +150,7 @@ class HandProcessor:
 
         return results
 
-    def get_state(self, frame: cv2.VideoCapture, draw_landmarks=False) -> Optional[dict[HandSide, HandState]]:
+    def get_state(self, frame: cv2.VideoCapture, draw_landmarks=False) -> Optional[dict[HandSide, Hand]]:
         results = self.process_frame(frame)
 
         # Return None if no results
@@ -156,9 +158,9 @@ class HandProcessor:
             return None
 
         # Get hand state for hand side
-        hands_state: dict[HandSide, HandState] = {
-            HandSide.LEFT: HandState(HandSide.LEFT),
-            HandSide.RIGHT: HandState(HandSide.RIGHT)
+        hands: dict[HandSide, Hand] = {
+            HandSide.LEFT: Hand(HandSide.LEFT),
+            HandSide.RIGHT: Hand(HandSide.RIGHT)
         }
 
         # Iterate combined ordered sets
@@ -174,71 +176,73 @@ class HandProcessor:
                 return None
 
             # Get the hand state
-            hand_state = hands_state[hand_side]
-
-            # Shorthand variable
-            lm = hand_landmarks.landmark
+            hand = hands[hand_side]
+            hand.visible = True
 
             # Compute hand rotation angle
-            wrist = lm[HandLandmark.WRIST.value]
-            index_mcp = lm[HandLandmark.INDEX_MCP.value]
+            wrist = hand_landmarks.landmark[HandLandmark.WRIST.value]
+            index_mcp = hand_landmarks.landmark[HandLandmark.INDEX_MCP.value]
+            thumb_tip = hand_landmarks.landmark[HandLandmark.THUMB_TIP.value]
+            thumb_base = hand_landmarks.landmark[HandLandmark.THUMB_MCP.value]
 
-            hand_state.angle = self.hand_rotation_angle(wrist, index_mcp)
+            hand.angle = self.hand_rotation_angle(wrist, index_mcp)
+            threshold_deg: float = 10.0
 
             digits_extended = 0
-            for digit in Digit:
-                digit_state = hand_state[digit]
+            for digit_type in DigitType:
+                digit = hand[digit_type]
 
-                digit_state.extended = self.is_finger_straight(
-                    hand_landmarks, digit)
+                digit.angle = self.digit_angle(
+                    hand_landmarks, digit_type)
 
-                if digit_state.extended:
+                digit.extended = digit.angle < threshold_deg
+
+                if digit.extended:
                     digits_extended += 1
 
-                tip = lm[tip_ids[digit]]
-                base = lm[base_ids[digit]]
+                tip = hand_landmarks.landmark[tip_ids[digit_type]]
+                base = hand_landmarks.landmark[base_ids[digit_type]]
 
                 dx = tip.x - base.x
                 dy = tip.y - base.y
 
                 if abs(dy) > abs(dx):
                     if dy < -0.02:
-                        digit_state.direction = DigitDirection.UP
+                        digit.direction = DigitDirection.UP
                     elif dy > 0.02:
-                        digit_state.direction = DigitDirection.DOWN
+                        digit.direction = DigitDirection.DOWN
                     else:
-                        digit_state.direction = DigitDirection.NEUTRAL
+                        digit.direction = DigitDirection.NEUTRAL
                 else:
                     if dx > 0.02:
-                        digit_state.direction = DigitDirection.RIGHT
+                        digit.direction = DigitDirection.RIGHT
                     elif dx < -0.02:
-                        digit_state.direction = DigitDirection.LEFT
+                        digit.direction = DigitDirection.LEFT
                     else:
-                        digit_state.direction = DigitDirection.NEUTRAL
+                        digit.direction = DigitDirection.NEUTRAL
 
-            thumb_tip = lm[HandLandmark.THUMB_TIP.value]
-            thumb_base = lm[HandLandmark.THUMB_MCP.value]
             thumb_up = thumb_tip.y < thumb_base.y - DELTA_VERTICAL_MARGIN
             thumb_down = thumb_tip.y > thumb_base.y + DELTA_VERTICAL_MARGIN
 
             if digits_extended == 0:
                 if thumb_up:
-                    hand_state.gesture = Gesture.THUMBS_UP
+                    hand.gesture = Gesture.THUMBS_UP
                 elif thumb_down:
-                    hand_state.gesture = Gesture.THUMBS_DOWN
+                    hand.gesture = Gesture.THUMBS_DOWN
                 else:
-                    hand_state.gesture = Gesture.FIST
+                    hand.gesture = Gesture.FIST
             else:
-                hand_state.gesture = {
+                hand.gesture = {
                     0: Gesture.FIST,
                     1: Gesture.ONE,
                     2: Gesture.TWO,
                     3: Gesture.THREE,
                     4: Gesture.FOUR,
+                    5: Gesture.FIVE
                 }.get(digits_extended, Gesture.NONE)
 
             if draw_landmarks:
                 self.draw_landmarks(frame, hand_landmarks,
                                     self.detection_width, self.detection_height)
 
-        return hands_state
+        return hands

@@ -10,3 +10,4 @@ class Gesture(Enum):
     TWO = auto()
     THREE = auto()
     FOUR = auto()
+    FIVE = auto()

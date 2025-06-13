@@ -1,42 +1,48 @@
-from enum import Enum
 from typing import Optional
+from hand_side import HandSide
+from digit_type import DigitType
 from digit import Digit
-from digit_state import DigitState
 from gesture import Gesture
 
 
-class HandSide(Enum):
-    LEFT = "left"
-    RIGHT = "right"
-
-
-class HandState:
+class Hand:
     def __init__(self, side: HandSide):
         self._side = side
         self._gesture: Optional[Gesture] = None
         self._angle: float = 0.0
-        self._digit_states: dict[Digit, DigitState] = {
-            Digit.PINKY:  DigitState(Digit.PINKY),
-            Digit.RING:   DigitState(Digit.RING),
-            Digit.MIDDLE: DigitState(Digit.MIDDLE),
-            Digit.INDEX:  DigitState(Digit.INDEX),
-            Digit.THUMB:  DigitState(Digit.THUMB)
+        self._visible: bool = False
+        self._digits: dict[DigitType, Digit] = {
+            DigitType.PINKY:  Digit(DigitType.PINKY),
+            DigitType.RING:   Digit(DigitType.RING),
+            DigitType.MIDDLE: Digit(DigitType.MIDDLE),
+            DigitType.INDEX:  Digit(DigitType.INDEX),
+            DigitType.THUMB:  Digit(DigitType.THUMB)
         }
 
-    def __getitem__(self, digit: Digit) -> DigitState:
-        if not isinstance(digit, Digit):
+    def __getitem__(self, digit: DigitType) -> Digit:
+        if not isinstance(digit, DigitType):
             raise TypeError("Key must be an instance of Digit enum")
-        return self._digit_states[digit]
+        return self._digits[digit]
 
-    def __setitem__(self, digit: Digit, state: DigitState) -> None:
-        if not isinstance(digit, Digit):
+    def __setitem__(self, digit: DigitType, state: Digit) -> None:
+        if not isinstance(digit, DigitType):
             raise TypeError("Key must be an instance of Digit enum")
-        if not isinstance(state, DigitState):
+        if not isinstance(state, Digit):
             raise TypeError("Value must be an instance of DigitState")
-        if state.digit != digit:
+        if state.type != digit:
             raise ValueError(
                 "DigitState.digit does not match the provided Digit key")
-        self._digit_states[digit] = state
+        self._digits[digit] = state
+
+    @property
+    def visible(self) -> bool:
+        return self._visible
+
+    @visible.setter
+    def visible(self, value: bool) -> None:
+        if not isinstance(value, bool):
+            raise TypeError("visible must be a boolean")
+        self._visible = value
 
     @property
     def side(self) -> HandSide:
@@ -53,9 +59,8 @@ class HandState:
         self._gesture = value
 
     @property
-    def digit_states(self) -> dict[Digit, DigitState]:
-        # Optionally return a copy to protect internal state
-        return self._digit_states.copy()
+    def digits(self) -> dict[DigitType, Digit]:
+        return self._digits
 
     @property
     def angle(self) -> float:
