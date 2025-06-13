@@ -112,13 +112,23 @@ class HandProcessor:
 
         return angle
 
-    def hand_rotation_angle(self, wrist, index_mcp):
+    def hand_rotation_angle(self, wrist, index_mcp, side: HandSide):
         # Calculates the in-plane rotation of the hand (roll) in degrees.
         dx = index_mcp.x - wrist.x
         dy = index_mcp.y - wrist.y
 
+        if side == HandSide.RIGHT:
+            dx = wrist.x - index_mcp.x
+            dy = wrist.y - index_mcp.y
+
         angle_rad = atan2(dy, dx)
         angle_deg = degrees(angle_rad)
+
+        # Normalise based on hand side
+        if side == HandSide.LEFT:
+            angle_deg += 77  # Emperically derived
+        else:
+            angle_deg -= 72
 
         return angle_deg  # Positive means rotated counterclockwise
 
@@ -185,7 +195,7 @@ class HandProcessor:
             thumb_tip = hand_landmarks.landmark[HandLandmark.THUMB_TIP.value]
             thumb_base = hand_landmarks.landmark[HandLandmark.THUMB_MCP.value]
 
-            hand.angle = self.hand_rotation_angle(wrist, index_mcp)
+            hand.angle = self.hand_rotation_angle(wrist, index_mcp, hand_side)
             threshold_deg: float = 10.0
 
             digits_extended = 0
