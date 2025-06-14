@@ -114,6 +114,10 @@ try:
                                               cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 1)
                             y += line_height
 
+                            draw_text_with_bg(display_frame, f'direction: {digit.direction}', (x + 20, y),
+                                              cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 1)
+                            y += line_height
+
                 y = y_start
                 x = screen_width / 2
                 draw_text_with_bg(display_frame, f'wake state: {hands.gesture}', (x, y),
