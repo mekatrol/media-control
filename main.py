@@ -70,14 +70,14 @@ def is_wake_state(hands: dict[HandSide, Hand]):
     if math.fabs(left_hand.angle) > vertical_hand_angle_threshold or math.fabs(right_hand.angle) > vertical_hand_angle_threshold:
         return False
 
-    # All fingers must be up and extended (dont care about thumbs)
-    left_up_extended = all(
-        digit.direction == DigitDirection.UP and digit.extended for digit_type, digit in left_hand.digits.items() if digit_type != DigitType.THUMB)
+    # All fingers must be up and colinear (dont care about thumbs)
+    left_up_colinear = all(
+        digit.direction == DigitDirection.UP and digit.colinear for digit_type, digit in left_hand.digits.items() if digit_type != DigitType.THUMB)
 
-    right_up_extended = all(
-        digit.direction == DigitDirection.UP and digit.extended for digit_type, digit in right_hand.digits.items() if digit_type != DigitType.THUMB)
+    right_up_colinear = all(
+        digit.direction == DigitDirection.UP and digit.colinear for digit_type, digit in right_hand.digits.items() if digit_type != DigitType.THUMB)
 
-    if not left_up_extended or not right_up_extended:
+    if not left_up_colinear or not right_up_colinear:
         return False
 
     return True
@@ -138,7 +138,7 @@ try:
                                               cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
                             y += line_height
 
-                            draw_text_with_bg(display_frame, f'extended: {digit.extended}', (x + 20, y),
+                            draw_text_with_bg(display_frame, f'colinear: {digit.colinear}', (x + 20, y),
                                               cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 1)
                             y += line_height
 

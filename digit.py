@@ -5,7 +5,7 @@ from digit_type import DigitType
 class Digit:
     def __init__(self, type: DigitType):
         self._type = type
-        self._extended: bool = False
+        self._colinear: bool = False
         self._angle: float = 0.0
         self._direction: DigitDirection = DigitDirection.NEUTRAL
 
@@ -20,14 +20,14 @@ class Digit:
         self._type = value
 
     @property
-    def extended(self) -> bool:
-        return self._extended
+    def colinear(self) -> bool:
+        return self._colinear
 
-    @extended.setter
-    def extended(self, value: bool) -> None:
+    @colinear.setter
+    def colinear(self, value: bool) -> None:
         if not isinstance(value, bool):
-            raise TypeError("extended must be a boolean")
-        self._extended = value
+            raise TypeError("colinear must be a boolean")
+        self._colinear = value
 
     @property
     def direction(self) -> DigitDirection:

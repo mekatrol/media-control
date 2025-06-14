@@ -1,6 +1,7 @@
 from typing import Optional
 import mediapipe as mp
 import cv2
+from digit import Digit
 from hand_side import HandSide
 from digit_direction import DigitDirection
 from digit_type import DigitType
@@ -99,8 +100,8 @@ class HandProcessor:
         if self.hands:
             self.hands.close()
 
-    def digit_angle(self, landmarks: NormalizedLandmarkList, digit: DigitType) -> float:
-        tip_idx, dip_idx, base_idx = digit_points[digit]
+    def upate_digit(self, landmarks: NormalizedLandmarkList, digit: Digit) -> None:
+        tip_idx, dip_idx, base_idx = digit_points[digit.type]
         tip = landmarks.landmark[tip_idx]
         mid = landmarks.landmark[dip_idx]
         base = landmarks.landmark[base_idx]
@@ -108,9 +109,27 @@ class HandProcessor:
         v1 = vector(base, mid)
         v2 = vector(mid, tip)
 
-        angle = angle_between(v1, v2)
+        colinear_tolerance_deg: float = 10.0
+        digit.angle = angle_between(v1, v2)
+        digit.colinear = digit.angle < colinear_tolerance_deg
 
-        return angle
+        dx = tip.x - base.x
+        dy = tip.y - base.y
+
+        if abs(dy) > abs(dx):
+            if dy < -0.02:
+                digit.direction = DigitDirection.UP
+            elif dy > 0.02:
+                digit.direction = DigitDirection.DOWN
+            else:
+                digit.direction = DigitDirection.NEUTRAL
+        else:
+            if dx > 0.02:
+                digit.direction = DigitDirection.RIGHT
+            elif dx < -0.02:
+                digit.direction = DigitDirection.LEFT
+            else:
+                digit.direction = DigitDirection.NEUTRAL
 
     def hand_rotation_angle(self, wrist, index_mcp, side: HandSide):
         # Calculates the in-plane rotation of the hand (roll) in degrees.
@@ -196,45 +215,20 @@ class HandProcessor:
             thumb_base = hand_landmarks.landmark[HandLandmark.THUMB_MCP.value]
 
             hand.angle = self.hand_rotation_angle(wrist, index_mcp, hand_side)
-            threshold_deg: float = 10.0
 
-            digits_extended = 0
+            colinear_digit_count = 0
             for digit_type in DigitType:
                 digit = hand[digit_type]
 
-                digit.angle = self.digit_angle(
-                    hand_landmarks, digit_type)
+                self.upate_digit(hand_landmarks, digit)
 
-                digit.extended = digit.angle < threshold_deg
-
-                if digit.extended:
-                    digits_extended += 1
-
-                tip = hand_landmarks.landmark[tip_ids[digit_type]]
-                base = hand_landmarks.landmark[base_ids[digit_type]]
-
-                dx = tip.x - base.x
-                dy = tip.y - base.y
-
-                if abs(dy) > abs(dx):
-                    if dy < -0.02:
-                        digit.direction = DigitDirection.UP
-                    elif dy > 0.02:
-                        digit.direction = DigitDirection.DOWN
-                    else:
-                        digit.direction = DigitDirection.NEUTRAL
-                else:
-                    if dx > 0.02:
-                        digit.direction = DigitDirection.RIGHT
-                    elif dx < -0.02:
-                        digit.direction = DigitDirection.LEFT
-                    else:
-                        digit.direction = DigitDirection.NEUTRAL
+                if digit.colinear:
+                    colinear_digit_count += 1
 
             thumb_up = thumb_tip.y < thumb_base.y - DELTA_VERTICAL_MARGIN
             thumb_down = thumb_tip.y > thumb_base.y + DELTA_VERTICAL_MARGIN
 
-            if digits_extended == 0:
+            if colinear_digit_count == 0:
                 if thumb_up:
                     hand.gesture = Gesture.THUMBS_UP
                 elif thumb_down:
@@ -249,7 +243,7 @@ class HandProcessor:
                     3: Gesture.THREE,
                     4: Gesture.FOUR,
                     5: Gesture.FIVE
-                }.get(digits_extended, Gesture.NONE)
+                }.get(colinear_digit_count, Gesture.NONE)
 
             if draw_landmarks:
                 self.draw_landmarks(frame, hand_landmarks,
