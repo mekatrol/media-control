@@ -2,10 +2,6 @@ from typing import Tuple
 import numpy as np
 import cv2
 import pyautogui
-import math
-from digit_direction import DigitDirection
-from digit_type import DigitType
-from hand import Hand
 from hand_processor import HandProcessor, digit_names
 from hand_side import HandSide
 
