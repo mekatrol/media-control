@@ -1,6 +1,7 @@
 from typing import Optional
 import mediapipe as mp
 import cv2
+import joblib
 from digit import Digit
 from hand_side import HandSide
 from digit_direction import DigitDirection
@@ -12,11 +13,15 @@ from math import atan2, degrees
 from hand_state import HandState
 from math_helper import angle_between, vector
 from hand import Hand
+import numpy as np
 
 # Threshold for "significantly" higher/lower
 DELTA_VERTICAL_MARGIN = 0.1
 
 VERTICAL_HAND_ANGLE_THRESHOLD = 15
+
+GESTURE_CONFIDENCE_PROBABILITY_THRESHOLD = 0.3
+GESTURE_USE_PROBABILITY = True
 
 digit_names = {
     DigitType.THUMB:  "Thumb",
@@ -74,6 +79,9 @@ digit_points = {
         HandLandmark.PINKY_PIP.value
     ),
 }
+
+# Load model
+model = joblib.load("gesture_model.pkl")
 
 
 class HandProcessor:
@@ -208,11 +216,27 @@ class HandProcessor:
             hand = hands[hand_side]
             hand.visible = True
 
+            data = []
+            for lm in hand_landmarks.landmark:
+                data.extend([lm.x, lm.y, lm.z])
+
+            if len(data) == 63:
+                if GESTURE_USE_PROBABILITY:
+
+                    probs = model.predict_proba([data])[0]
+                    confidence = max(probs)
+                    predicted_class = model.classes_[np.argmax(probs)]
+
+                    if confidence >= GESTURE_CONFIDENCE_PROBABILITY_THRESHOLD:
+                        hand.gesture = HandGesture(predicted_class)
+                    else:
+                        hand.gesture = HandGesture.NONE
+                else:
+                    hand.gesture = HandGesture(model.predict([data])[0])
+
             # Compute hand rotation angle
             wrist = hand_landmarks.landmark[HandLandmark.WRIST.value]
             index_mcp = hand_landmarks.landmark[HandLandmark.INDEX_MCP.value]
-            thumb_tip = hand_landmarks.landmark[HandLandmark.THUMB_TIP.value]
-            thumb_base = hand_landmarks.landmark[HandLandmark.THUMB_MCP.value]
 
             hand.angle = self.hand_rotation_angle(wrist, index_mcp, hand_side)
 
@@ -225,21 +249,8 @@ class HandProcessor:
                 if digit.colinear:
                     colinear_digit_count += 1
 
-            thumb_up = thumb_tip.y < thumb_base.y - DELTA_VERTICAL_MARGIN
-            thumb_down = thumb_tip.y > thumb_base.y + DELTA_VERTICAL_MARGIN
-
             if self.is_wake_gesture(hands):
                 hands.gesture = HandsGesture.WAKE
-
-            if colinear_digit_count == 0:
-                if thumb_up:
-                    hand.gesture = HandGesture.THUMBS_UP
-                elif thumb_down:
-                    hand.gesture = HandGesture.THUMBS_DOWN
-                else:
-                    hand.gesture = HandGesture.FIST
-            else:
-                hand.gesture = HandGesture.NONE
 
             if draw_landmarks:
                 self.draw_landmarks(frame, hand_landmarks,
