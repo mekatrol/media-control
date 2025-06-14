@@ -2,13 +2,13 @@ from typing import Optional
 from hand_side import HandSide
 from digit_type import DigitType
 from digit import Digit
-from gesture import Gesture
+from gesture import HandGesture
 
 
 class Hand:
     def __init__(self, side: HandSide):
         self._side = side
-        self._gesture: Optional[Gesture] = None
+        self._gesture: Optional[HandGesture] = None
         self._angle: float = 0.0
         self._visible: bool = False
         self._digits: dict[DigitType, Digit] = {
@@ -24,15 +24,15 @@ class Hand:
             raise TypeError("Key must be an instance of Digit enum")
         return self._digits[digit]
 
-    def __setitem__(self, digit: DigitType, state: Digit) -> None:
-        if not isinstance(digit, DigitType):
-            raise TypeError("Key must be an instance of Digit enum")
-        if not isinstance(state, Digit):
-            raise TypeError("Value must be an instance of DigitState")
-        if state.type != digit:
+    def __setitem__(self, digit_type: DigitType, digit: Digit) -> None:
+        if not isinstance(digit_type, DigitType):
+            raise TypeError("digit_type must be an instance of Digit")
+        if not isinstance(digit, Digit):
+            raise TypeError("digit must be an instance of Digit")
+        if digit.type != digit_type:
             raise ValueError(
-                "DigitState.digit does not match the provided Digit key")
-        self._digits[digit] = state
+                "digit.type does not match the provided digit_type")
+        self._digits[digit_type] = digit
 
     @property
     def visible(self) -> bool:
@@ -49,12 +49,12 @@ class Hand:
         return self._side
 
     @property
-    def gesture(self) -> Optional[Gesture]:
+    def gesture(self) -> Optional[HandGesture]:
         return self._gesture
 
     @gesture.setter
-    def gesture(self, value: Optional[Gesture]) -> None:
-        if value is not None and not isinstance(value, Gesture):
+    def gesture(self, value: Optional[HandGesture]) -> None:
+        if value is not None and not isinstance(value, HandGesture):
             raise TypeError("gesture must be an instance of Gesture or None")
         self._gesture = value
 

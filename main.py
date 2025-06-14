@@ -55,34 +55,6 @@ def resize_with_aspect_ratio(image, target_width, target_height):
     return result
 
 
-vertical_hand_angle_threshold = 15
-
-
-def is_wake_state(hands: dict[HandSide, Hand]):
-    left_hand = hands[HandSide.LEFT]
-    right_hand = hands[HandSide.RIGHT]
-
-    # Both hands must be visible
-    if not left_hand.visible or not right_hand.visible:
-        return False
-
-    # Both hands must be vertical
-    if math.fabs(left_hand.angle) > vertical_hand_angle_threshold or math.fabs(right_hand.angle) > vertical_hand_angle_threshold:
-        return False
-
-    # All fingers must be up and colinear (dont care about thumbs)
-    left_up_colinear = all(
-        digit.direction == DigitDirection.UP and digit.colinear for digit_type, digit in left_hand.digits.items() if digit_type != DigitType.THUMB)
-
-    right_up_colinear = all(
-        digit.direction == DigitDirection.UP and digit.colinear for digit_type, digit in right_hand.digits.items() if digit_type != DigitType.THUMB)
-
-    if not left_up_colinear or not right_up_colinear:
-        return False
-
-    return True
-
-
 cv2.namedWindow("Hands", cv2.WINDOW_NORMAL)
 cap = cv2.VideoCapture(0)
 
@@ -116,7 +88,7 @@ try:
             text_width, text_heght = text_size
 
             if hands is not None:
-                for i, hand in enumerate(hands.values()):
+                for i, hand in enumerate(hands.hand_list):
                     y = y_start
                     if hand.visible:
                         x = 20 if hand.side == HandSide.LEFT else screen_width - text_width
@@ -148,7 +120,7 @@ try:
 
                 y = y_start
                 x = screen_width / 2
-                draw_text_with_bg(display_frame, f'wake state: {is_wake_state(hands)}', (x, y),
+                draw_text_with_bg(display_frame, f'wake state: {hands.gesture}', (x, y),
                                   cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
 
             cv2.imshow("Hands", display_frame)

@@ -5,15 +5,18 @@ from digit import Digit
 from hand_side import HandSide
 from digit_direction import DigitDirection
 from digit_type import DigitType
-from gesture import Gesture
+from gesture import HandGesture, HandsGesture
 from hand_landmark import HandLandmark
 from mediapipe.framework.formats.landmark_pb2 import NormalizedLandmarkList
 from math import atan2, degrees
+from hand_state import HandState
 from math_helper import angle_between, vector
 from hand import Hand
 
 # Threshold for "significantly" higher/lower
 DELTA_VERTICAL_MARGIN = 0.1
+
+VERTICAL_HAND_ANGLE_THRESHOLD = 15
 
 digit_names = {
     DigitType.THUMB:  "Thumb",
@@ -179,7 +182,7 @@ class HandProcessor:
 
         return results
 
-    def get_state(self, frame: cv2.VideoCapture, draw_landmarks=False) -> Optional[dict[HandSide, Hand]]:
+    def get_state(self, frame: cv2.VideoCapture, draw_landmarks=False) -> Optional[HandState]:
         results = self.process_frame(frame)
 
         # Return None if no results
@@ -187,10 +190,7 @@ class HandProcessor:
             return None
 
         # Get hand state for hand side
-        hands: dict[HandSide, Hand] = {
-            HandSide.LEFT: Hand(HandSide.LEFT),
-            HandSide.RIGHT: Hand(HandSide.RIGHT)
-        }
+        hands = HandState()
 
         # Iterate combined ordered sets
         for hand_landmarks, handedness in zip(results.multi_hand_landmarks, results.multi_handedness):
@@ -228,25 +228,45 @@ class HandProcessor:
             thumb_up = thumb_tip.y < thumb_base.y - DELTA_VERTICAL_MARGIN
             thumb_down = thumb_tip.y > thumb_base.y + DELTA_VERTICAL_MARGIN
 
+            if self.is_wake_gesture(hands):
+                hands.gesture = HandsGesture.WAKE
+
             if colinear_digit_count == 0:
                 if thumb_up:
-                    hand.gesture = Gesture.THUMBS_UP
+                    hand.gesture = HandGesture.THUMBS_UP
                 elif thumb_down:
-                    hand.gesture = Gesture.THUMBS_DOWN
+                    hand.gesture = HandGesture.THUMBS_DOWN
                 else:
-                    hand.gesture = Gesture.FIST
+                    hand.gesture = HandGesture.FIST
             else:
-                hand.gesture = {
-                    0: Gesture.FIST,
-                    1: Gesture.ONE,
-                    2: Gesture.TWO,
-                    3: Gesture.THREE,
-                    4: Gesture.FOUR,
-                    5: Gesture.FIVE
-                }.get(colinear_digit_count, Gesture.NONE)
+                hand.gesture = HandGesture.NONE
 
             if draw_landmarks:
                 self.draw_landmarks(frame, hand_landmarks,
                                     self.detection_width, self.detection_height)
 
         return hands
+
+    def is_wake_gesture(self, hands: dict[HandSide, Hand]):
+        left_hand = hands[HandSide.LEFT]
+        right_hand = hands[HandSide.RIGHT]
+
+        # Both hands must be visible
+        if not left_hand.visible or not right_hand.visible:
+            return False
+
+        # Both hands must be vertical
+        if abs(left_hand.angle) > VERTICAL_HAND_ANGLE_THRESHOLD or abs(right_hand.angle) > VERTICAL_HAND_ANGLE_THRESHOLD:
+            return False
+
+        # All fingers must be up and colinear (dont care about thumbs)
+        left_up_colinear = all(
+            digit.direction == DigitDirection.UP and digit.colinear for digit_type, digit in left_hand.digits.items() if digit_type != DigitType.THUMB)
+
+        right_up_colinear = all(
+            digit.direction == DigitDirection.UP and digit.colinear for digit_type, digit in right_hand.digits.items() if digit_type != DigitType.THUMB)
+
+        if not left_up_colinear or not right_up_colinear:
+            return False
+
+        return True
