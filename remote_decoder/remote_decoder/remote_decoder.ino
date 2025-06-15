@@ -5,7 +5,7 @@ struct ButtonCode {
   const char* label;
 };
 
-// List of unique button codes from your list:
+// Your button codes
 ButtonCode buttonCodes[] = {
   {0x30FCF, "Mute"},
   {0xAB054F, "Power"},
@@ -31,7 +31,6 @@ ButtonCode buttonCodes[] = {
   {0xC8037F, "Menu"},
   {0x3A0C5F, "Next"},
   {0x1B0E4F, "Return"},
-
   {0x6509AF, "Up"},
   {0xE501AF, "Down"},
   {0x9506AF, "Left"},
@@ -41,18 +40,23 @@ ButtonCode buttonCodes[] = {
 
 const int numButtons = sizeof(buttonCodes) / sizeof(ButtonCode);
 
+const int RECV_PIN = 2;
+const int SEND_PIN = 3;
+
+IRsend irsend(SEND_PIN);
+
 void setup() {
   Serial.begin(115200);
-  IrReceiver.begin(2, ENABLE_LED_FEEDBACK);  // IR receiver on pin 2 with feedback LED
-  Serial.println("IR Receiver ready");
+  IrReceiver.begin(RECV_PIN, ENABLE_LED_FEEDBACK);  // Receiver on pin 2 with LED feedback
+  Serial.println("IR Receiver and Sender ready");
 }
 
 void loop() {
+  // Receiving code
   if (IrReceiver.decode()) {
     uint32_t receivedCode = IrReceiver.decodedIRData.decodedRawData;
     const char* matchedLabel = "Unknown";
 
-    // Search for matching code
     for (int i = 0; i < numButtons; i++) {
       if (receivedCode == buttonCodes[i].code) {
         matchedLabel = buttonCodes[i].label;
@@ -65,6 +69,52 @@ void loop() {
     Serial.print(" - ");
     Serial.println(matchedLabel);
 
-    IrReceiver.resume(); // Receive next value
+    IrReceiver.resume(); // Ready for next code
+  }
+
+  // Example: Send "Mute" code every 5 seconds (modify as needed)
+  static unsigned long lastSendTime = 0;
+  if (millis() - lastSendTime > 5000) {
+    lastSendTime = millis();
+
+    // Find "Mute" code index
+    int muteIndex = -1;
+    for (int i = 0; i < numButtons; i++) {
+      if (strcmp(buttonCodes[i].label, "Mute") == 0) {
+        muteIndex = i;
+        break;
+      }
+    }
+
+    if (muteIndex != -1) {
+      Serial.print("Sending code for ");
+      Serial.println(buttonCodes[muteIndex].label);
+
+      // Protocol 2 is PulseDistance (based on your data)
+      // So send using sendPulseDistance function
+      
+      // The IRremote library currently doesn't have sendPulseDistance directly,
+      // but the protocol 2 corresponds to the NEC protocol in many cases,
+      // or you can send raw timing data.
+      // Since you have raw 24bit LSB first data, sendRaw is better.
+
+      // Convert 24bit code to raw pulse timings if you have timings or send raw data.
+      // For simplicity, we'll send NEC with the code since it's 32bit with leading zeros.
+      // We'll send lower 24 bits only, padded as 32 bits.
+
+      uint32_t codeToSend = buttonCodes[muteIndex].code;
+
+      IrSender.sendPulseDistanceWidthData(
+        560,     // One mark (microseconds)
+        1690,    // One space
+        560,     // Zero mark
+        560,     // Zero space
+        codeToSend, // Your 24-bit code
+        24,      // Number of bits
+        true     // LSB first
+      );
+
+      Serial.println("Sent Mute code");
+    }
   }
 }
